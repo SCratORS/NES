@@ -80,7 +80,7 @@ void Mapper_023::reset() {
 uint8_t Mapper_023::mirror() {
 	return mirrormode;
 }
-
+/*
 bool Mapper_023::irqState() {
 	return bIRQActive;
 }
@@ -100,3 +100,4 @@ void Mapper_023::scanline(int16_t cycle, int16_t scanline, uint8_t mask, uint8_t
 		}
 	}
 }
+*/

@@ -79,11 +79,9 @@ void Mapper_001::reset() {
 	nControlRegister = 0x1C;
 	nLoadRegister = 0x00;
 	nLoadRegisterCount = 0x00;
-	
 	nCHRBankSelect4Lo = 0;
 	nCHRBankSelect4Hi = 0;
 	nCHRBankSelect8 = 0;
-
 	nPRGBankSelect32 = 0;
 	nPRGBankSelect16Lo = 0;
 	nPRGBankSelect16Hi = nPRGBanks - 1;

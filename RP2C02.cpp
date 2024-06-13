@@ -1,8 +1,13 @@
 #include "RP2C02.h"
 #include "BUS.h"
-#include <cmath>
 
-RP2C02::RP2C02() {FrameBuffer = new uint32_t[256*240];}
+RP2C02::RP2C02() {}
+
+void RP2C02::setScale(uint16_t screen_width, uint8_t scale) {
+	this->scale = scale;
+	this->screen_width = screen_width;
+	this->scale_offset = scale==2?((screen_width-256)>>1):(scale<2?((screen_width-308)>>1):0);
+}
 
 uint8_t	 RP2C02::MemAccess(uint16_t addr, uint8_t data, bool write) {
 	uint8_t result = 0x00;
@@ -15,8 +20,7 @@ uint8_t	 RP2C02::MemAccess(uint16_t addr, uint8_t data, bool write) {
 		case 0x01:	if (write) mask.reg = data;	break;
 		case 0x02:	if (write) break;
 					result = (status.reg & 0xE0) | (ppu_data_buffer & 0x1F);
-					status.vertical_blank = 0;
-					address_latch = 0;
+					status.vertical_blank = address_latch = 0;
 					break;
 		case 0x03:	if (write) oam_addr = data;	break;
 		case 0x04:	if (write) pOAM[oam_addr] = data;
@@ -37,7 +41,7 @@ uint8_t	 RP2C02::MemAccess(uint16_t addr, uint8_t data, bool write) {
 						ppu_data_buffer = t;
 						if (vram_addr.reg >= 0x3F00) result = ppu_data_buffer = (ppu_data_buffer & 0xC0) | (t & 0x3F);
 					};
-					vram_addr.reg += control.increment_mode ? 32 : 1;
+					vram_addr.reg += control.increment_mode ? 0x20 : 0x01;
 					break;
 	}
 	return result;
@@ -48,35 +52,34 @@ uint8_t RP2C02::PPUMemAccess(uint16_t addr, uint8_t data, bool write) {
 	uint8_t result = data;
 	if (addr >= 0x3F00) {	if(addr%4 == 0) addr &= 0x0F;
 							uint8_t& M = tblPalette[addr&0x1F];
-							if (write) M = data; else return(M & (mask.grayscale ? 0x30 : 0x3F)); }
-	else if (addr >= 0x2000) {	addr &= 0x0FFF;
-							uint8_t& M = tblName[(CART->Mirror() >> ((addr>>10)&0x03))&0x01][addr & 0x03FF];
-							if  (write) M = data; else return M;}
-	else CART->PPUMemAccess(addr, result, write);
+							if (write) M = data; else return(M & (mask.grayscale ? 0x30 : 0x3F));
+						}
+	else if (addr >= 0x2000) { addr &= 0x0FFF;
+							if (CART) {
+								uint8_t& M = tblName[(CART->Mirror() >> ((addr>>10)&0x03))&0x01][addr & 0x03FF];
+								if  (write) M = data; else return M; }
+							}
+	else if (CART) CART->PPUMemAccess(addr, result, write);
 	return result;
 }
 
 void RP2C02::reset() {
 	fine_x = 0x00;
-	address_latch = false;
+	address_latch = odd_frame = false;
 	ppu_data_buffer = 0x00;
 	scanline = -1;
 	cycle = 0;
 	bg_next_tile_attrib = 0x00;
 	bg_shifter_pattern_lo = bg_shifter_pattern_hi = 0x0000;
 	bg_shifter_attrib_lo = bg_shifter_attrib_hi = 0x0000;
-	status.reg = 0x00;
-	mask.reg = 0x00;
-	control.reg = 0x00;
-	vram_addr.reg = 0x0000;
-	tram_addr.reg = 0x0000;
-	odd_frame = false;
+	status.reg = mask.reg = control.reg = 0x00;
+	vram_addr.reg = tram_addr.reg = 0x0000;
 }
 
 void RP2C02::rendering_tick() {
 	bool render_SB = (mask.render_background || mask.render_sprites);
 	uint8_t nOAMEntry = 0;
-	if (cycle==001 && scanline < 0) status.reg = 0;
+	if (cycle==001 && scanline < 0) {status.reg = 0;}
 	if (cycle==304 && scanline < 0 && mask.render_background) vram_addr.reg = tram_addr.reg;
 	if (cycle==339 && scanline < 0 && mask.render_background && odd_frame) {odd_frame = cycle = scanline = 0;}
 	if ((cycle > 1 && cycle < 258) || (cycle > 320 && cycle < 338)) {
@@ -99,14 +102,13 @@ void RP2C02::rendering_tick() {
 			bg_shifter_pattern_hi |= PPUMemAccess(bg_next_tile_addr + 8);
 			bg_shifter_attrib_lo  = (bg_shifter_attrib_lo & 0xFF00) | ((bg_next_tile_attrib & 0b01) ? 0xFF : 0x00);
 			bg_shifter_attrib_hi  = (bg_shifter_attrib_hi & 0xFF00) | ((bg_next_tile_attrib & 0b10) ? 0xFF : 0x00);
-			bg_next_tile_attrib = PPUMemAccess(0x23C0 + (vram_addr.reg&0xC00) + 8*(vram_addr.coarse_y/4) + (vram_addr.coarse_x/4));		
+			bg_next_tile_attrib = PPUMemAccess(0x23C0 + (vram_addr.reg&0xC00) + ((vram_addr.coarse_y>>2)<<3) + (vram_addr.coarse_x>>2));		
 			if (vram_addr.coarse_y & 0x02) bg_next_tile_attrib >>= 4;
 			if (vram_addr.coarse_x & 0x02) bg_next_tile_attrib >>= 2;
 			bg_next_tile_attrib &= 0x03;
 			bg_next_tile_addr = (control.pattern_background << 12) + (PPUMemAccess(0x2000 | (vram_addr.reg & 0xFFF)) << 4) + vram_addr.fine_y;
 		}
 	}
-
 	if (cycle == 257) {
 		if (render_SB) {
 			vram_addr.nametable_x = tram_addr.nametable_x;
@@ -123,7 +125,7 @@ void RP2C02::rendering_tick() {
 		bSpriteZeroHitPossible = false;
 		while (nOAMEntry < 64 && sprite_count < MAX_SPRITE)	{
 			int16_t diff = ((int16_t)scanline - (int16_t)OAM[nOAMEntry].y);			
-			if (diff >= 0 && diff < (control.sprite_size ? 16 : 8)) {
+			if (diff >= 0 && diff < (control.sprite_size ? 0x10 : 0x08)) {
 				if (nOAMEntry == 0) bSpriteZeroHitPossible = true;
 				memcpy(&spriteScanline[sprite_count], &OAM[nOAMEntry], sizeof(sObjectAttributeEntry));	
 				uint8_t a = !(((scanline - spriteScanline[sprite_count].y<8)>0)^((spriteScanline[sprite_count].attribute&0x80)>0));
@@ -131,7 +133,7 @@ void RP2C02::rendering_tick() {
 				  ((control.sprite_size?(spriteScanline[sprite_count].id & 0x01):control.pattern_sprite) << 12) |
 				  ((control.sprite_size?((spriteScanline[sprite_count].id & 0xFE) + a):spriteScanline[sprite_count].id) <<  4) |
 				  (((scanline - spriteScanline[sprite_count].y)&(control.sprite_size?0x07:0xFF))^
-				  	((spriteScanline[sprite_count].attribute & 0x80)?7:0));
+				  	((spriteScanline[sprite_count].attribute & 0x80)?0x07:0x00));
 				sprite_shifter_pattern_lo[sprite_count] = PPUMemAccess(sprite_pattern_addr);
 				sprite_shifter_pattern_hi[sprite_count] = PPUMemAccess(sprite_pattern_addr + 8);
 				if (spriteScanline[sprite_count].attribute & 0x40) {
@@ -151,6 +153,14 @@ void RP2C02::rendering_tick() {
 		status.sprite_overflow = (sprite_count > MAX_SPRITE);
 	}
 }
+
+uint32_t avrColor(uint8_t a, uint8_t b, uint32_t c1, uint32_t c2) {
+	uint8_t R = ((((c1 >> 16) & 0xFF) * a) + (((c2 >> 16) & 0xFF)*b)) / (a+b);
+	uint8_t G = ((((c1 >> 8) & 0xFF) * a) + (((c2 >> 8) & 0xFF)*b)) / (a+b);
+	uint8_t B = (((c1 & 0xFF) * a) + ((c2 & 0xFF)*b)) / (a+b);
+	return (R << 16) | (G<<8) | B;
+}
+
 
 void RP2C02::rendering_pixel() {
 	uint8_t pixel = 0x00, palette = 0x00;
@@ -173,11 +183,11 @@ void RP2C02::rendering_pixel() {
 				uint8_t fg_pixel_hi = (sprite_shifter_pattern_hi[i] & 0x80) > 0;
 				uint8_t fg_pixel = (fg_pixel_hi << 1) | fg_pixel_lo;
 				if (fg_pixel) {
-					if (!(spriteScanline[i].attribute&0x20) || !pixel) {
+					if (!(spriteScanline[i].attribute&0x20 && pixel)) {
 						pixel = fg_pixel;
 						palette = (spriteScanline[i].attribute & 0x03) + 0x04;
 					}
-					if ((i == 0) && bSpriteZeroHitPossible) bSpriteZeroBeingRendered = true;
+					if (!i && bSpriteZeroHitPossible) bSpriteZeroBeingRendered = true;
 					break;
 				}
 			}
@@ -185,15 +195,28 @@ void RP2C02::rendering_pixel() {
 	}
 	if (bSpriteZeroHitPossible && bSpriteZeroBeingRendered && render_bg && render_sp) status.sprite_zero_hit = 1;
 	if (scanline < 0) return;
-	FrameBuffer[scanline * 256 + cycle-1] = palScreen[PPUMemAccess(0x3F00+(palette<<2)+pixel)&0x3F];
+	uint32_t offset = scanline * screen_width + scale_offset;
+	uint32_t color = palScreen[PPUMemAccess(0x3F00+(palette<<2)+pixel)&0x3F];
+	uint8_t mod = 0;
+	switch (scale) {
+		case 0: if (scanline%2) color = avrColor(3, 1, color, 0);
+		case 1: mod = 5; break; // 4:3
+		case 2: FrameBuffer[offset + (cycle - 1)] = color; return; //PixelPerfect
+		case 3: mod = 4; break; //Stretch to 320
+	}
+	offset += (mod+1) * ((cycle - 1) / mod);
+	uint8_t shift = ((cycle-1) % mod);
+	FrameBuffer[offset + shift] = avrColor(shift, mod-shift, FrameBuffer[offset + shift] , color);
+	if (mod == 5 && (cycle - 1)==255) return;
+	FrameBuffer[offset + shift+1] = color;
 }
 
 void RP2C02::clock() {
 	if (scanline < 240) {
 		rendering_tick();
-		if (cycle > 0 && cycle < 257) rendering_pixel();		
+		if (cycle > 0 && cycle < 257) rendering_pixel();
 	}
-	CART->IRQScanline(cycle, scanline, mask.reg, control.reg);
+	if (CART) CART->IRQScanline(cycle, scanline, mask.reg, control.reg);
 	if (++cycle >= 341)	{
 		cycle = 0;
 		switch (++scanline) {

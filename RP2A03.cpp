@@ -7,17 +7,33 @@ RP2A03::~RP2A03(){}
 
 bool RP2A03::count(int& v, int reset) { return --v < 0 ? (v=reset),true : false; }
 
+void RP2A03::reset() {
+		CPU_IRQ = false;	
+    Frame_IRQ = false;
+    DMC_IRQ = false;
+    FiveCycleDivider = false;
+    IRQdisable = false;
+    hz240counter.lo = 0;
+    hz240counter.hi = 0;
+    sample = 0;
+    for (uint8_t i=0; i<5; i++) {
+    	memset(&chn[0]+i, 0x00, sizeof(channel) );
+    	ChannelsEnabled[i] = false;
+    }
+
+}
+
 int RP2A03::tick(uint8_t c) {
 	channel& ch = chn[c];
 	if (!ChannelsEnabled[c]) return c<4?8:ch.linear_counter;
-	int wl = (ch.WaveLength+1) * (c >= 2 ? 1 : 2);
+	int wl = (ch.WaveLength+1) << (c >= 2 ? 0 : 1);
 	if(c == 3) wl = NoisePeriods[ ch.reg2&0x0F ] << 1;
 	int volume = ch.length_counter ? ch.reg0&0x10 ? ch.reg0&0x0F : ch.envelope : 0;
 	auto& S = ch.level;
 	if(!count(ch.wave_counter, wl)) return S;
 	switch(c) {
 		default: if(wl < 8) return S = 8;
-           		return S = (0x9F786040u & (1u << (((ch.reg0>>6)&0x03) * 8 + ch.phase++ % 8))) ? volume : 0;
+           		return S = (0x9F786040u & (1u << ((((ch.reg0>>6)&0x03)<<3) + ch.phase++ % 8))) ? volume : 0;
 		case 2:	if(!ch.length_counter || !ch.linear_counter || wl < 3) return S = 8;
            		++ch.phase;
            		return S = (ch.phase & 15) ^ ((ch.phase & 16) ? 15 : 0);
@@ -38,7 +54,7 @@ int RP2A03::tick(uint8_t c) {
 	            if(ch.phase != 0) {
 	                int v = ch.linear_counter;
 	                if(ch.hold & (0x80 >> --ch.phase)) v += 2; else v -= 2;
-	                if(v >= 0 && v <= 0x7F) ch.linear_counter = v;
+	                if(v >= 0x00 && v < 0x80) ch.linear_counter = v;
 	            }
 	            return S = ch.linear_counter;
 	}
@@ -46,7 +62,7 @@ int RP2A03::tick(uint8_t c) {
 
 uint8_t	 RP2A03::MemAccess(uint16_t addr, uint8_t data, bool write) {
 	uint8_t result = data;
-	channel& ch = chn[(addr/4) % 5];
+	channel& ch = chn[(addr>>2) % 5];
 	switch (addr<0x10 ? addr%4 : addr) {
 		case 0: if (write) ch.reg0 = data; break;
 		case 1: if (!write) break;
@@ -60,7 +76,7 @@ uint8_t	 RP2A03::MemAccess(uint16_t addr, uint8_t data, bool write) {
 		case 3: if (!write) break;
 						ch.reg3 = data;
 						ch.WaveLength =  ((ch.WaveLength&0x00FF) | (ch.reg3 << 8)) & 0x07FF;
-						if(ChannelsEnabled[addr/4]) ch.length_counter = LengthCounters[ch.reg3>>3];
+						if(ChannelsEnabled[addr>>2]) ch.length_counter = LengthCounters[ch.reg3>>3];
 						ch.linear_counter = ch.reg0&0x7F;
 						ch.env_delay      = ch.reg0&0x0F;
 						ch.envelope       = 15;
@@ -70,7 +86,7 @@ uint8_t	 RP2A03::MemAccess(uint16_t addr, uint8_t data, bool write) {
 						ch.reg3 = data;
 						ch.WaveLength = DMCperiods[data&0x0F];
 						break;
-		case 0x11: if (write) ch.linear_counter = data&0x7F; break;
+		case 0x11: if (write) direct_output = data&0x7F; break;
 		case 0x12: if (write) ch.reg0 = data; ch.address = (ch.reg0 | 0x300) << 6; break;
 		case 0x13: if (!write) break;
 								ch.reg1 = data;
@@ -92,11 +108,11 @@ uint8_t	 RP2A03::MemAccess(uint16_t addr, uint8_t data, bool write) {
 							}
 							break;
 		break;
-		case 0x17: 	if (!write) break;
+		case 0x17: if (!write) break;
 								FiveCycleDivider = data & 0x80;
 								IRQdisable       = data & 0x40;
 								hz240counter     = { 0,0 };
-								if (IRQdisable) Frame_IRQ = DMC_IRQ = false;							 
+								if(IRQdisable) Frame_IRQ = DMC_IRQ = false;
 								break;
 	}
 	return result;
@@ -119,7 +135,7 @@ void RP2A03::clock() {
 			if(HalfTick && c < 2 && count(ch.sweep_delay, (ch.reg1>>4)&0x07 ))
 				if(wl >= 8 && ch.reg1&0x80 && ch.reg1&0x07) {
 					int s = wl >> (ch.reg1&0x07), d[4] = {s, s, ~s, -s};
-					wl += d[((ch.reg1>>3)&1) *2 + c];
+					wl += d[(((ch.reg1>>3)&1) <<1) + c];
 					if(wl < 0x800) { ch.WaveLength = wl;	}
 				}
 			if(FullTick && c == 2) ch.linear_counter = ch.reg0&0x80 ? ch.reg0&0x7F : (ch.linear_counter > 0 ? ch.linear_counter - 1 : 0);
@@ -132,7 +148,7 @@ void RP2A03::clock() {
   auto v = [](float m,float n, float d) { return n!=0.f ? m/n : d; };
   sample = 30000 *
     (v(95.88f,  (100.f + v(8128.f, s[0] + s[1], -100.f)), 0.f)
-  +  v(159.79f, (100.f + v(1.0, s[2]/8227.f + s[3]/12241.f + s[4]/22638.f, -100.f)), 0.f)
+  +  v(159.79f, (100.f + v(1.0, s[2]/8227.f + s[3]/12241.f + s[4]/22638.f + direct_output/22638.f, -100.f)), 0.f)
     - 0.5f
     );	
 }

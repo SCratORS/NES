@@ -10,7 +10,7 @@ class RP6502
 public:
 	RP6502();
 	~RP6502();
-public:
+
 	uint8_t  m      = 0x00;
 	uint8_t  a      = 0x00;
 	uint8_t  x      = 0x00;
@@ -18,8 +18,9 @@ public:
 	uint8_t  stkp   = 0x00;
 	uint16_t pc     = 0x0000;
 	uint8_t  status = 0x00;
+
 	uint8_t  MemAccess(uint16_t addr, uint8_t data = 0x00, bool write = false);
-	uint8_t  controller[4];
+	uint8_t  controller[2];
 
 	void reset();
 	void irq();
@@ -29,8 +30,6 @@ public:
 	bool complete();
 
 	void ConnectBus(BUS *n) { bus = n; }
-
-	std::map<uint16_t, std::string> disassemble(uint16_t nStart, uint16_t nStop);
 
 	enum FLAGS6502
 	{
@@ -46,7 +45,6 @@ public:
 
 private:
 	BUS * bus = nullptr;
-
 	uint8_t GetFlag(FLAGS6502 f);
 	void    SetFlag(FLAGS6502 f, bool v);
 	uint8_t CF;
@@ -74,7 +72,7 @@ private:
 	uint8_t dma_data = 0x00;
 	bool dma_dummy = true;
 	bool dma_transfer = false;
-	uint32_t controller_state[2];
+	uint8_t controller_state[2];
 
 	struct INSTRUCTION
 	{

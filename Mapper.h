@@ -13,6 +13,8 @@ public:
 	virtual uint8_t mirror();
 	virtual bool irqState();
 	virtual void irqClear();
+	virtual void LoadState() {};
+	virtual void SaveState() {};
 	virtual void scanline(int16_t cycle, int16_t scanline, uint8_t mask, uint8_t control);
 
 protected:

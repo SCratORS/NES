@@ -13,7 +13,6 @@ public:
 	void irqClear() override {}
 	void scanline(int16_t cycle, int16_t scanline, uint8_t mask, uint8_t control) override {}
 
-
 private:
 	uint8_t nPRGBankSelectLo = 0x00;
 	uint8_t nPRGBankSelectHi = 0x00;

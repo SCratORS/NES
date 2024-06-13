@@ -16,14 +16,12 @@ public:
 	uint8_t mirror() override {return mirrormode;}
 
 private:
-	// Control variables
 	uint8_t nReg = 0x00;
 	uint8_t mirrormode = 0x0C;
 	uint8_t lPRGBanks = 0;
 	uint8_t pRegister[8];
 	uint32_t pCHRBank[8];
 	uint32_t pPRGBank[4];
-
 	bool bIRQActive = false;
 	bool bIRQEnable = false;
 	bool bIRQUpdate = false;

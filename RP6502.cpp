@@ -38,14 +38,16 @@ uint8_t	 RP6502::MemAccess(uint16_t addr, uint8_t data, bool write) {
 					dma_addr = 0x00;
 					dma_transfer = true;
 		break;
-		case 0x16:	if (write) {
-						controller_state[0] = (0xFF) << 24 | (0b00001000 << 16 ) | (controller[2]<<8) | controller[0];
-						controller_state[1] = (0xFF) << 24 | (0b00001000 << 16 ) | (controller[3]<<8) | controller[1];
+		case 0x16:	if (write) controller_state[addr & 0x0001] = controller[addr & 0x0001];
+					else {
+						result = (controller_state[addr & 0x0001] & 0x80) > 0;
+						controller_state[addr & 0x0001] <<= 1;
 					}
-		case 0x17:	if (!write) {
-
-						result = (controller_state[addr & 0x0001] & 1) | ((controller_state[addr & 0x0001] & 0x100) >> 7);
-						controller_state[addr & 0x0001] >>= 1;
+		break;
+		case 0x17:	if (write) controller_state[addr & 0x0001] = controller[addr & 0x0001];
+					else {
+						result = (controller_state[addr & 0x0001] & 0x80) > 0;
+						controller_state[addr & 0x0001] <<= 1;
 					}
 		break;
 	}
@@ -62,7 +64,6 @@ void RP6502::push(uint8_t  v) {	bus->MemAccess(0x0100 + stkp--, v, true); }
 void RP6502::push(uint16_t v) {	bus->MemAccess(0x0100 + stkp--, (v >> 8) & 0x00FF, true);	bus->MemAccess(0x0100 + stkp--, v & 0x00FF, true); }
 uint8_t RP6502::ab_(uint8_t v){ ZP0(); uint16_t addr_tmp = bus->MemAccess(pc++)<<8;	addr_abs |= addr_tmp;	addr_abs += v;	return crosspage(addr_abs, addr_tmp)?1:0; }
 uint8_t RP6502::zp_(uint8_t v){	ZP0(); addr_abs += v; addr_abs &= 0x00FF; return 0; }
-
 
 void RP6502::reset() {
 	a = x = y = m = 0x00;
@@ -83,7 +84,7 @@ void RP6502::irq() {
 	push(status);
 	addr_abs = 0xFFFE;
 	pc = (bus->MemAccess(addr_abs + 1) << 8) | bus->MemAccess(addr_abs + 0);
-	cycles = 7;
+	cycles = 12;
 }
 
 
@@ -93,7 +94,7 @@ void RP6502::nmi() {
 	push(status);
 	addr_abs = 0xFFFA;
 	pc = (bus->MemAccess(addr_abs + 1) << 8) | bus->MemAccess(addr_abs + 0);
-	cycles = 8;
+	cycles = 12; // 7 cycles + 5 cycles VBlankState
 }
 
 void RP6502::dma_clock(uint32_t counter) {
@@ -113,8 +114,8 @@ void RP6502::dma_clock(uint32_t counter) {
 			}
 		}
 	}
-	
 }
+
 
 void RP6502::clock() {
 	if (dma_transfer) return;
@@ -223,7 +224,7 @@ uint8_t RP6502::ROR() { fetch(); SetFlag(C, m&C); setZN(m = (m >> 1) | (CF << 7)
 uint8_t RP6502::BIT() { fetch(); SetFlag(V, m&V); SetFlag(Z, !(a&m)); SetFlag(N, m&N);     return 0; }
 uint8_t RP6502::DEC() { fetch(); bus->MemAccess(addr_abs, --m, true); setZN(m); return 0; }
 uint8_t RP6502::INC() { fetch(); bus->MemAccess(addr_abs, ++m, true); setZN(m); return 0; }
-uint8_t RP6502::STA() { bus->MemAccess(addr_abs, a,  true); return 0; }
+uint8_t RP6502::STA() { bus->MemAccess(addr_abs, a, true); return 0; }
 uint8_t RP6502::STX() { bus->MemAccess(addr_abs, x, true); return 0; }
 uint8_t RP6502::STY() { bus->MemAccess(addr_abs, y, true); return 0; }
 // This illegal operations
@@ -248,147 +249,4 @@ uint8_t RP6502::ISC() { return INC() & SBC(); }
 /*--------ILLEGAL END-----------*/
 ///////////////////////////////////////////////////////////////////////////////
 // HELPER FUNCTIONS
-
 bool RP6502::complete() { return cycles == 0; }
-
-// This is the disassembly function. Its workings are not required for emulation.
-// It is merely a convenience function to turn the binary instruction code into
-// human readable form. Its included as part of the emulator because it can take
-// advantage of many of the CPUs internal operations to do this.
-std::map<uint16_t, std::string> RP6502::disassemble(uint16_t nStart, uint16_t nStop)
-{
-	uint32_t addr = nStart;
-	uint8_t value = 0x00, lo = 0x00, hi = 0x00;
-	std::map<uint16_t, std::string> mapLines;
-	uint16_t line_addr = 0;
-
-	std::string  Opname[0x100] = 
-	{
-		"BRK","ORA","KIL","SLO","NOP","ORA","ASL","SLO","PHP","ORA","ASL","ANC","NOP","ORA","ASL","SLO",
-		"BPL","ORA","KIL","SLO","NOP","ORA","ASL","SLO","CLC","ORA","NOP","SLO","NOP","ORA","ASL","SLO",
-		"JSR","AND","KIL","RLA","BIT","AND","ROL","RLA","PLP","AND","ROL","ANC","BIT","AND","ROL","RLA",
-		"BMI","AND","KIL","RLA","NOP","AND","ROL","RLA","SEC","AND","NOP","RLA","NOP","AND","ROL","RLA",
-		"RTI","EOR","KIL","SRE","NOP","EOR","LSR","SRE","PHA","EOR","LSR","ALR","JMP","EOR","LSR","SRE",
-		"BVC","EOR","KIL","SRE","NOP","EOR","LSR","SRE","CLI","EOR","NOP","SRE","NOP","EOR","LSR","SRE",
-		"RTS","ADC","KIL","RRA","NOP","ADC","ROR","RRA","PLA","ADC","ROR","ARR","JMP","ADC","ROR","RRA",
-		"BVS","ADC","KIL","RRA","NOP","ADC","ROR","RRA","SEI","ADC","NOP","RRA","NOP","ADC","ROR","RRA",
-		"NOP","STA","NOP","SAX","STY","STA","STX","SAX","DEY","NOP","TXA","XAA","STY","STA","STX","SAX",
-		"BCC","STA","KIL","AHX","STY","STA","STX","SAX","TYA","STA","TXS","TAS","SHY","STA","SHX","AHX",
-		"LDY","LDA","LDX","LAX","LDY","LDA","LDX","LAX","TAY","LDA","TAX","LAX","LDY","LDA","LDX","LAX",
-		"BCS","LDA","KIL","LAX","LDY","LDA","LDX","LAX","CLV","LDA","TSX","LAS","LDY","LDA","LDX","LAX",
-		"CPY","CMP","NOP","DCP","CPY","CMP","DEC","DCP","INY","CMP","DEX","AXS","CPY","CMP","DEC","DCP",
-		"BNE","CMP","KIL","DCP","NOP","CMP","DEC","DCP","CLD","CMP","NOP","DCP","NOP","CMP","DEC","DCP",
-		"CPX","SBC","NOP","ISC","CPX","SBC","INC","ISC","INX","SBC","NOP","SBC","CPX","SBC","INC","ISC",
-		"BEQ","SBC","KIL","ISC","NOP","SBC","INC","ISC","SED","SBC","NOP","ISC","NOP","SBC","INC","ISC"
-	};
-
-	// A convenient utility to convert variables into
-	// hex strings because "modern C++"'s method with 
-	// streams is atrocious
-	auto hex = [](uint32_t n, uint8_t d)
-	{
-		std::string s(d, '0');
-		for (int i = d - 1; i >= 0; i--, n >>= 4)
-			s[i] = "0123456789ABCDEF"[n & 0xF];
-		return s;
-	};
-
-	// Starting at the specified address we read an instruction
-	// byte, which in turn yields information from the lookup table
-	// as to how many additional bytes we need to read and what the
-	// addressing mode is. I need this info to assemble human readable
-	// syntax, which is different depending upon the addressing mode
-
-	// As the instruction is decoded, a std::string is assembled
-	// with the readable output
-	while (addr <= (uint32_t)nStop)
-	{
-		line_addr = addr;
-
-		// Prefix line with instruction address
-		std::string sInst = "$" + hex(addr, 4) + ": ";
-
-		// Read instruction, and get its readable name
-		uint8_t opcode = bus->MemAccess(addr); addr++;
-		sInst += Opname[opcode] + " ";
-
-		// Get oprands from desired locations, and form the
-		// instruction based upon its addressing mode. These
-		// routines mimmick the actual fetch routine of the
-		// 6502 in order to get accurate data as part of the
-		// instruction
-		if (lookup[opcode].addrmode == &RP6502::IMP)
-		{
-			sInst += " {IMP}";
-		}
-		else if (lookup[opcode].addrmode == &RP6502::IMM)
-		{
-			value = bus->MemAccess(addr); addr++;
-			sInst += "#$" + hex(value, 2) + " {IMM}";
-		}
-		else if (lookup[opcode].addrmode == &RP6502::ZP0)
-		{
-			lo = bus->MemAccess(addr); addr++;
-			hi = 0x00;												
-			sInst += "$" + hex(lo, 2) + " {ZP0}";
-		}
-		else if (lookup[opcode].addrmode == &RP6502::ZPX)
-		{
-			lo = bus->MemAccess(addr); addr++;
-			hi = 0x00;														
-			sInst += "$" + hex(lo, 2) + ", X {ZPX}";
-		}
-		else if (lookup[opcode].addrmode == &RP6502::ZPY)
-		{
-			lo = bus->MemAccess(addr); addr++;
-			hi = 0x00;														
-			sInst += "$" + hex(lo, 2) + ", Y {ZPY}";
-		}
-		else if (lookup[opcode].addrmode == &RP6502::IZX)
-		{
-			lo = bus->MemAccess(addr); addr++;
-			hi = 0x00;								
-			sInst += "($" + hex(lo, 2) + ", X) {IZX}";
-		}
-		else if (lookup[opcode].addrmode == &RP6502::IZY)
-		{
-			lo = bus->MemAccess(addr); addr++;
-			hi = 0x00;								
-			sInst += "($" + hex(lo, 2) + "), Y {IZY}";
-		}
-		else if (lookup[opcode].addrmode == &RP6502::ABS)
-		{
-			lo = bus->MemAccess(addr); addr++;
-			hi = bus->MemAccess(addr); addr++;
-			sInst += "$" + hex((uint16_t)(hi << 8) | lo, 4) + " {ABS}";
-		}
-		else if (lookup[opcode].addrmode == &RP6502::ABX)
-		{
-			lo = bus->MemAccess(addr); addr++;
-			hi = bus->MemAccess(addr); addr++;
-			sInst += "$" + hex((uint16_t)(hi << 8) | lo, 4) + ", X {ABX}";
-		}
-		else if (lookup[opcode].addrmode == &RP6502::ABY)
-		{
-			lo = bus->MemAccess(addr); addr++;
-			hi = bus->MemAccess(addr); addr++;
-			sInst += "$" + hex((uint16_t)(hi << 8) | lo, 4) + ", Y {ABY}";
-		}
-		else if (lookup[opcode].addrmode == &RP6502::IND)
-		{
-			lo = bus->MemAccess(addr); addr++;
-			hi = bus->MemAccess(addr); addr++;
-			sInst += "($" + hex((uint16_t)(hi << 8) | lo, 4) + ") {IND}";
-		}
-		else if (lookup[opcode].addrmode == &RP6502::REL)
-		{
-			value = bus->MemAccess(addr); addr++;
-			sInst += "$" + hex(value, 2) + " [$" + hex(addr + (int8_t)value, 4) + "] {REL}";
-		}
-		mapLines[line_addr] = sInst;
-	}
-
-	return mapLines;
-}
-
-// End of File - Jx9

@@ -12,7 +12,6 @@ public:
 	bool irqState() override { return 0;}
 	void irqClear() override {}
 	void scanline(int16_t cycle, int16_t scanline, uint8_t mask, uint8_t control) override {}
-
 private:
 	uint8_t nPRGBank = 0;
 	uint8_t mirrormode = 0x0C;

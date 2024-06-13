@@ -11,9 +11,11 @@ public:
 	bool CPUMapAddress(uint16_t addr, uint32_t &mapped_addr, uint8_t &data, bool write = false) override;
 	bool PPUMapAddress(uint16_t addr, uint32_t &mapped_addr, bool write = false) override;
 	void reset() override;
+	/*
 	bool irqState() override;
 	void irqClear() override;
 	void scanline(int16_t cycle, int16_t scanline, uint8_t mask, uint8_t control) override;
+	*/
 	uint8_t mirror();
 
 private:
@@ -23,7 +25,6 @@ private:
 	uint8_t vRAMStatic[0x2000];
 	bool wRAM = false;
 	bool mSWAP = false;
-
 	bool bIRQActive = false;
 	bool bIRQMode = false;
 	bool bIRQEnable = false;

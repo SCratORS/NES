@@ -45,6 +45,7 @@ private:
 
 	} chn[5];
 	BUS * bus = nullptr;
+	int16_t direct_output;
 	bool ChannelsEnabled[5] = { false };
 	bool FiveCycleDivider = false;
 	bool IRQdisable = false;

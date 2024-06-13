@@ -12,9 +12,10 @@ BUS::~BUS() {
 
 void BUS::Reset()
 {	
-	CART->reset();
+	if (this->CART) CART->reset();
 	CPU.reset();
 	PPU.reset();
+	APU.reset();
 	nSystemClockCounter = 0;
 }
 
@@ -33,14 +34,11 @@ uint8_t BUS::MemAccess(uint16_t addr, uint8_t data, bool write) {
 	else CART->MemAccess(addr, data, write);
 	return data;
 }
-
 void BUS::Clock() {
 	for(unsigned n=0; n<3; ++n) {
 		PPU.clock();
 		CPU.dma_clock(nSystemClockCounter++);
 	}
-	APU.clock();
-	CPU.clock();
 	if (PPU.nmi) {
 		PPU.nmi = false;
 		CPU.nmi();
@@ -49,6 +47,13 @@ void BUS::Clock() {
 		CART->IRQClear();
 		CPU.irq();		
 	}
+	APU.clock();
+	CPU.clock();
+}
+
+void BUS::RejectCartridge() {
+	PPU.RejectCartridge();
+	this->CART = nullptr;
 }
 
 void BUS::ConnectCartridge(CARTRIDGE * cartridge) {

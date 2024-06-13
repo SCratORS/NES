@@ -1,5 +1,5 @@
 #include "Mapper_004.h"
-
+#include <cstdio>
 Mapper_004::Mapper_004(uint8_t prgBanks, uint8_t chrBanks) : Mapper(prgBanks, chrBanks) {
 	vRAMStatic.resize(32 * 1024);
 }
@@ -44,7 +44,7 @@ void Mapper_004::reset() {
 	bIRQActive = bIRQEnable = false;
 	nIRQCounter = nIRQReload = 0;
 	for (int i = 0; i < 4; i++)	pPRGBank[i] = 0;
-	for (int i = 0; i < 8; i++) { pCHRBank[i] = 0; pRegister[i] = 0xFF; }
+	for (int i = 0; i < 8; i++) { pCHRBank[i] = 0; pRegister[i] = 0x00; }
 	lPRGBanks = nPRGBanks * 2 - 1;
 	pPRGBank[0] = 0 * 0x2000;
 	pPRGBank[1] = 1 * 0x2000;
