@@ -1,1 +1,0 @@
-g++ *.cpp -o NES.exe -lmingw32 -lSDL2main -lSDL2 -mwindows
