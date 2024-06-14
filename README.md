@@ -21,8 +21,8 @@ NES->PPU.setScale(320, 2 /*Screen size, 0-pixelPerfect 1-4x3 2-320*/);
 NES->Reset();
 
 while(true){ //main loop
-    NES->CPU.controller[0] = *readControler1*
-    NES->CPU.controller[1] = *readControler2*
+    NES->CPU.controller[0] = SomeReadControler(1); /*readControler1 function return byte status buttons*/
+    NES->CPU.controller[1] = SomeReadControler(2); /*readControler2 function return byte status buttons*/
     do { 
         NES->Clock();
         uint8_t SkeepBuffer = (int)((1789773.0/SoundSamplesPerSec)  * ((double) currentFPS / 59.0));
@@ -32,6 +32,5 @@ while(true){ //main loop
     } while (!NES->PPU.frame_complete);
     NES->PPU.frame_complete = false;
     render(sreen_buffer);
-
 }
 ```
