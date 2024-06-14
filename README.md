@@ -16,7 +16,7 @@ CARTRIDGE * cart = new CARTRIDGE("file.nes");
 
 if (!cart->ImageValid()) return false;
 NES->ConnectCartridge(cart);
-NES->PPU.setFrameBuffer(frm_buffer);
+NES->PPU.setFrameBuffer(sreen_buffer);
 NES->PPU.setScale(320, 2 /*Screen size, 0-pixelPerfect 1-4x3 2-320*/);
 NES->Reset();
 
