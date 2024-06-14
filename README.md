@@ -5,3 +5,33 @@ Based https://github.com/OneLoneCoder/olcNES
 - Fix Mappers. Add new mappers.
 - Fix PPU.
 - Fix APU. Work all 5 channels.
+
+## Program Example
+```C++
+#include "nes/BUS.h"
+
+uint32_t * sreen_buffer = new uint32_t[320*240];
+BUS * NES = new NES();
+CARTRIDGE * cart = new CARTRIDGE("file.nes");
+
+if (!cart->ImageValid()) return false;
+NES->ConnectCartridge(cart);
+NES->PPU.setFrameBuffer(frm_buffer);
+NES->PPU.setScale(0-pixelPerfect 1-4x3 2-320);
+NES->Reset();
+
+while(true){ //main loop
+    NES->CPU.controller[0] = *readControler1*
+    NES->CPU.controller[1] = *readControler2*
+    do { 
+        NES->Clock();
+        uint8_t SkeepBuffer = (int)((1789773.0/SoundSamplesPerSec)  * ((double) currentFPS / 59.0));
+        if (NES->APU.getAudioReady(SkeepBuffer)) {
+            playSample(NES->APU.sample);
+        }
+    } while (!NES->PPU.frame_complete);
+    NES->PPU.frame_complete = false;
+    render(sreen_buffer);
+
+}
+```
