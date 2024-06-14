@@ -23,9 +23,9 @@ NES->Reset();
 while(true){ //main loop
     NES->CPU.controller[0] = SomeReadControler(1); /*readControler1 function return byte status buttons*/
     NES->CPU.controller[1] = SomeReadControler(2); /*readControler2 function return byte status buttons*/
+    uint8_t SkeepBuffer = (int)((1789773.0/SoundSamplesPerSec)  * ((double) currentFPS / 59.0));
     do { 
         NES->Clock();
-        uint8_t SkeepBuffer = (int)((1789773.0/SoundSamplesPerSec)  * ((double) currentFPS / 59.0));
         if (NES->APU.getAudioReady(SkeepBuffer)) {
             playSample(NES->APU.sample);
         }
