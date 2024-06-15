@@ -10,13 +10,13 @@ Based https://github.com/OneLoneCoder/olcNES
 ```C++
 #include "nes/BUS.h"
 
-uint32_t * sreen_buffer = new uint32_t[320*240];
+uint32_t * screen_buffer = new uint32_t[320*240];
 BUS * NES = new NES();
 CARTRIDGE * cart = new CARTRIDGE("file.nes");
 
 if (!cart->ImageValid()) return false;
 NES->ConnectCartridge(cart);
-NES->PPU.setFrameBuffer(sreen_buffer);
+NES->PPU.setFrameBuffer(screen_buffer);
 NES->PPU.setScale(320, 2 /*Screen size, 0-pixelPerfect 1-4x3 2-320*/);
 NES->Reset();
 
@@ -31,6 +31,6 @@ while(true){ //main loop
         }
     } while (!NES->PPU.frame_complete);
     NES->PPU.frame_complete = false;
-    render(sreen_buffer);
+    render(screen_buffer);
 }
 ```
