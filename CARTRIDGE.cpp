@@ -35,18 +35,24 @@ CARTRIDGE::CARTRIDGE(const std::string& sFileName) {
 			if (nFileType == 1)	{ //iNes v1 format serialization
 				nPRGBanks = header.prg_rom_chunks;
 				nCHRBanks = header.chr_rom_chunks?header.chr_rom_chunks:1;
-				printf("%s MP:%d PRG:%d, CHR:%d\n", "iNES1", nMapperID, nPRGBanks, nCHRBanks);
+				#ifdef INFO
+				printf("INFO: %s MP:%d PRG:%d, CHR:%d\n", "iNES1", nMapperID, nPRGBanks, nCHRBanks);
+				#endif
 			}
 			if (nFileType == 2)	{ //iNes v2 format serialization
 				nPRGBanks = ((header.prg_ram_size & 0x07) << 8) | header.prg_rom_chunks;
 				nCHRBanks = ((header.prg_ram_size & 0x38) << 8) | header.chr_rom_chunks;
-				printf("%s MP:%d PRG:%d, CHR:%d\n", "iNES2", nMapperID, nPRGBanks, nCHRBanks);
+				#ifdef INFO
+				printf("INFO: %s MP:%d PRG:%d, CHR:%d\n", "iNES2", nMapperID, nPRGBanks, nCHRBanks);
+				#endif
 			}
-			vPRGMemory.resize(nPRGBanks * 0x4000);
-			vCHRMemory.resize(nCHRBanks * 0x2000);
-			ifs.read((char*)vPRGMemory.data(), vPRGMemory.size());
-			ifs.read((char*)vCHRMemory.data(), vCHRMemory.size());
-			printf("PRG: %d, CHR: %d\n", vPRGMemory.size(), vCHRMemory.size());
+			vPRGMemory = new uint8_t[cPRGLength = nPRGBanks * 0x4000];
+			vCHRMemory = new uint8_t[cCHRLength = nCHRBanks * 0x2000];
+			ifs.read((char*)vPRGMemory, cPRGLength);
+			ifs.read((char*)vCHRMemory, cCHRLength);
+			#ifdef INFO
+			printf("INFO: PRG: %d, CHR: %d\n", cPRGLength, cCHRLength);
+			#endif
 			switch (nMapperID) {
 				case   0: pMapper = new Mapper_000(nPRGBanks, nCHRBanks); break;
 				case   1: pMapper = new Mapper_001(nPRGBanks, nCHRBanks); break;
@@ -66,12 +72,35 @@ CARTRIDGE::CARTRIDGE(const std::string& sFileName) {
 }
 
 CARTRIDGE::~CARTRIDGE() {
-	vPRGMemory.clear();
-	vCHRMemory.clear();
+	vPRGMemory = NULL;
+	vCHRMemory = NULL;
 	delete pMapper;
 	pMapper = NULL;
 }
 
+void CARTRIDGE::SaveState(CARTState * state) {
+	state->maxCHRAddr = reg.maxCHRAddr;
+	state->maxPRGAddr = reg.maxPRGAddr;
+	if (reg.maxCHRAddr) {
+		state->CHRam = new uint8_t[reg.maxCHRAddr+1];
+		memcpy(state->CHRam, &vCHRMemory[0], reg.maxCHRAddr+1);
+	}
+	if (reg.maxPRGAddr) {
+		state->PRGRam = new uint8_t[reg.maxPRGAddr+1];
+		memcpy(state->PRGRam, &vPRGMemory[0], reg.maxPRGAddr+1);
+	}
+	state->sizeMapState = pMapper->GetMapperSize();
+	state->mapperState = pMapper->SaveState();
+}
+void CARTRIDGE::LoadState(CARTState * state) {
+	reg.maxCHRAddr = state->maxCHRAddr;
+	reg.maxPRGAddr = state->maxPRGAddr;
+	if (reg.maxCHRAddr) memcpy(&vCHRMemory[0], state->CHRam, reg.maxCHRAddr+1);
+	if (reg.maxPRGAddr) memcpy(&vPRGMemory[0], state->PRGRam, reg.maxPRGAddr+1);
+	reg.sizeMapState = state->sizeMapState;
+	pMapper->LoadState(state->mapperState);
+
+}
 
 bool CARTRIDGE::ImageValid() {return bImageValid;}
 void CARTRIDGE::reset() {pMapper->reset();}
@@ -84,8 +113,11 @@ bool CARTRIDGE::MemAccess(uint16_t addr, uint8_t &data, bool write) {
 	uint32_t mapped_addr = 0;
 	if (pMapper->CPUMapAddress(addr, mapped_addr, data, write)) {
 		if (mapped_addr != 0xFFFFFFFF) {// Mapper has actually set the data value, for example cartridge based RAM 
-			uint8_t &M = vPRGMemory[mapped_addr%vPRGMemory.size()];
-			if (write) M = data; else data = M;
+			uint8_t &M = vPRGMemory[mapped_addr%cPRGLength];
+			if (write && mapped_addr<0x4000) {
+				M = data;
+				if (mapped_addr > reg.maxPRGAddr) reg.maxPRGAddr = mapped_addr;
+			} else data = M;
 		}
 		return true;
 	}
@@ -95,8 +127,11 @@ bool CARTRIDGE::MemAccess(uint16_t addr, uint8_t &data, bool write) {
 bool CARTRIDGE::PPUMemAccess(uint16_t addr, uint8_t &data, bool write) {
 	uint32_t mapped_addr = 0;
 	if (pMapper->PPUMapAddress(addr, mapped_addr, write)) {
-		uint8_t &M = vCHRMemory[mapped_addr%vCHRMemory.size()];
-		if (write) M = data; else data = M;
+		uint8_t &M = vCHRMemory[mapped_addr%cCHRLength];
+		if (write && mapped_addr<0x2000) {
+			M = data;
+			if (mapped_addr > reg.maxCHRAddr) reg.maxCHRAddr = mapped_addr;
+		} else data = M;
 		return true;
 	}
 	return false;

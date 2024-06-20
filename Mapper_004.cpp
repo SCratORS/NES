@@ -1,65 +1,75 @@
 #include "Mapper_004.h"
 #include <cstdio>
 Mapper_004::Mapper_004(uint8_t prgBanks, uint8_t chrBanks) : Mapper(prgBanks, chrBanks) {
-	vRAMStatic.resize(32 * 1024);
 }
+
+void Mapper_004::LoadState(uint8_t * state) {
+	memcpy(&reg, state, sizeof(mapper));
+};
+
+uint8_t * Mapper_004::SaveState() {
+	uint8_t * result = new uint8_t[sizeof(mapper)];
+	memcpy(result, &reg, sizeof(mapper));
+	return result;
+};
 
 bool Mapper_004::CPUMapAddress(uint16_t addr, uint32_t &mapped_addr, uint8_t &data, bool write) {
 	if (addr < 0x6000) return false;
 	if (addr >= 0x6000 && addr <= 0x7FFF) {
 		mapped_addr = 0xFFFFFFFF;
-		uint8_t& M = vRAMStatic[addr & 0x1FFF];
+		uint8_t& M = reg.vRAMStatic[addr & 0x1FFF];
 		if (write) M = data; else data = M;
 		return true;
 	}
 	if (write){
 		switch ((addr & 1) + ((addr >> 12) & 6)) {
-			case 0: nReg = data; break;
-			case 1: pRegister[nReg&7] = data; break;
-			case 2:	mirrormode = (data&1)?0x0C:0x0A; break;
-			case 4: nIRQReload = data; break;
-			case 5:	nIRQCounter = 0; bIRQReloadPending = true; break;
-			case 6: bIRQEnable = bIRQActive = false; break;
-			case 7: bIRQEnable = true; break;
+			case 0: reg.nReg = data; break;
+			case 1: reg.pRegister[reg.nReg&7] = data; break;
+			case 2:	reg.mirrormode = (data&1)?0x0C:0x0A; break;
+			case 4: reg.nIRQReload = data; break;
+			case 5:	reg.nIRQCounter = 0; reg.bIRQReloadPending = true; break;
+			case 6: reg.bIRQEnable = reg.bIRQActive = false; break;
+			case 7: reg.bIRQEnable = true; break;
 		}
 		for (uint8_t n=0; n<4; n++) {
-			pCHRBank[n+((nReg&0x80)?0:4)] = pRegister[n+2] * 0x0400;
-			pCHRBank[n+((nReg&0x80)?4:0)] = (pRegister[n>>1]+((n%2)?1:0)) * 0x0400;
+			reg.pCHRBank[n+((reg.nReg&0x80)?0:4)] = reg.pRegister[n+2] * 0x0400;
+			reg.pCHRBank[n+((reg.nReg&0x80)?4:0)] = (reg.pRegister[n>>1]+((n%2)?1:0)) * 0x0400;
 		}
-		pPRGBank[(nReg&0x40)?0:2] = (nPRGBanks * 2 - 2) * 0x2000;
-		pPRGBank[(nReg&0x40)?2:0] = (pRegister[6] & lPRGBanks) * 0x2000;
-		pPRGBank[1] = (pRegister[7] & lPRGBanks) * 0x2000;
-	} else mapped_addr = pPRGBank[(addr>>13) & 3] + (addr & 0x1FFF);
+		reg.pPRGBank[(reg.nReg&0x40)?0:2] = (nPRGBanks * 2 - 2) * 0x2000;
+		reg.pPRGBank[(reg.nReg&0x40)?2:0] = (reg.pRegister[6] & reg.lPRGBanks) * 0x2000;
+		reg.pPRGBank[1] = (reg.pRegister[7] & reg.lPRGBanks) * 0x2000;
+	} else mapped_addr = reg.pPRGBank[(addr>>13) & 3] + (addr & 0x1FFF);
 	return !write;
 }
 
 bool Mapper_004::PPUMapAddress(uint16_t addr, uint32_t &mapped_addr, bool write) {
-	mapped_addr = pCHRBank[addr>>10] + (addr & 0x03FF);
+	mapped_addr = reg.pCHRBank[addr>>10] + (addr & 0x03FF);
 	return addr<0x2000;
 }
 
 void Mapper_004::reset() {
-	nReg = 0x00;
-	mirrormode = 0x0C;
-	bIRQActive = bIRQEnable = false;
-	nIRQCounter = nIRQReload = 0;
-	for (int i = 0; i < 4; i++)	pPRGBank[i] = 0;
-	for (int i = 0; i < 8; i++) { pCHRBank[i] = 0; pRegister[i] = 0x00; }
-	lPRGBanks = nPRGBanks * 2 - 1;
-	pPRGBank[0] = 0 * 0x2000;
-	pPRGBank[1] = 1 * 0x2000;
-	pPRGBank[2] = (nPRGBanks * 2 - 2) * 0x2000;
-	pPRGBank[3] = lPRGBanks * 0x2000;
+	reg.nReg = 0x00;
+	reg.mirrormode = 0x0C;
+	reg.bIRQActive = reg.bIRQEnable = false;
+	reg.nIRQCounter = reg.nIRQReload = 0;
+	for (int i = 0; i < 4; i++)	reg.pPRGBank[i] = 0;
+	for (int i = 0; i < 8; i++) { reg.pCHRBank[i] = 0; reg.pRegister[i] = 0x00; }
+	reg.lPRGBanks = nPRGBanks * 2 - 1;
+	reg.pPRGBank[0] = 0 * 0x2000;
+	reg.pPRGBank[1] = 1 * 0x2000;
+	reg.pPRGBank[2] = (nPRGBanks * 2 - 2) * 0x2000;
+	reg.pPRGBank[3] = reg.lPRGBanks * 0x2000;
+	for (uint16_t i = 0; i<0x8000; i++) reg.vRAMStatic[i] = 0x00; 
 }
 
 void Mapper_004::scanline(int16_t cycle, int16_t scanline, uint8_t mask, uint8_t control) {
 	if (scanline < 240) {
 		if (cycle == 260 && mask&0x18) {
-			if (nIRQCounter == 0 || bIRQReloadPending) {
-				nIRQCounter = nIRQReload;
-				bIRQReloadPending = false;
-			} else nIRQCounter--;
-			if (nIRQCounter == 0 && bIRQEnable) bIRQActive = true;
+			if (reg.nIRQCounter == 0 || reg.bIRQReloadPending) {
+				reg.nIRQCounter = reg.nIRQReload;
+				reg.bIRQReloadPending = false;
+			} else reg.nIRQCounter--;
+			if (reg.nIRQCounter == 0 && reg.bIRQEnable) reg.bIRQActive = true;
 		}
 	}
 }

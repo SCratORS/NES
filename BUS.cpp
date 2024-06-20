@@ -4,7 +4,6 @@ BUS::BUS() {
 	CPU.ConnectBus(this);
 	PPU.ConnectBus(this);
 	APU.ConnectBus(this);
-	for(uint16_t a=0; a<0x800; a++) RAM[a] = (a&4) ? 0xFF : 0x00;
 }
 
 BUS::~BUS() {
@@ -16,8 +15,28 @@ void BUS::Reset()
 	CPU.reset();
 	PPU.reset();
 	APU.reset();
+	for(uint16_t a=0; a<0x800; a++) RAM[a] = (a&4) ? 0xFF : 0x00;
 	nSystemClockCounter = 0;
 }
+
+void BUS::SaveState(State * state) {
+	memcpy(&state->RAM, &RAM, 0x800);
+	state->nSystemClockCounter = nSystemClockCounter;
+	CPU.SaveState(&state->CPU);
+	PPU.SaveState(&state->PPU);
+	APU.SaveState(&state->APU);
+	CART->SaveState(&state->CART);
+}
+
+void BUS::LoadState(State * state) {
+	memcpy(&RAM, &state->RAM, 0x800);
+	nSystemClockCounter = state->nSystemClockCounter;
+	CPU.LoadState(&state->CPU);
+	PPU.LoadState(&state->PPU);
+	APU.LoadState(&state->APU);
+	CART->LoadState(&state->CART);
+}
+
 
 
 uint8_t BUS::MemAccess(uint16_t addr, uint8_t data, bool write) {

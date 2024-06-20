@@ -2,7 +2,34 @@
 
 #include <string>
 #include <map>
-#include <vector>
+
+struct channel {
+	uint8_t reg0;
+	uint8_t reg1;
+	uint8_t reg2;
+	uint8_t reg3;
+	int length_counter;
+	int linear_counter;
+	int address;
+	int envelope;
+	int sweep_delay;
+	int env_delay;
+	int level;
+	int wave_counter;
+	int phase;
+	int hold;
+	int WaveLength;
+};
+
+struct APUState {
+ 	channel chn[5];
+	bool ChannelsEnabled[5] = { false };
+	int output_direct_volume_dmc; 
+	bool FiveCycleDivider = false;
+	bool IRQdisable = false;
+	struct { int16_t lo, hi; } hz240counter = { 0,0 };
+};
+
 
 class BUS;
 
@@ -11,6 +38,8 @@ class RP2A03
 public:
 	RP2A03();
 	~RP2A03();
+	void SaveState(APUState * state);
+	void LoadState(APUState * state);
 
 	bool DMC_IRQ = false;
 	const uint8_t  LengthCounters[32]	= { 10,254,20, 2,40, 4,80, 6,160, 8,60,10,14,12,26,14,12, 16,24,18,48,20,96,22,192,24,72,26,16,28,32,30 };
@@ -25,31 +54,8 @@ public:
 	bool getAudioReady(unsigned SkeepBuffer);
 	void ConnectBus(BUS *n) { bus = n; }
 private:
-	struct channel {
-		uint8_t reg0;
-		uint8_t reg1;
-		uint8_t reg2;
-		uint8_t reg3;
-
-		int length_counter;
-		int linear_counter;
-		int address;
-		int envelope;
-		int sweep_delay;
-		int env_delay;
-		int level;
-		int wave_counter;
-		int phase;
-		int hold;
-		int WaveLength;
-
-	} chn[5];
 	BUS * bus = nullptr;
-	int16_t direct_output;
-	bool ChannelsEnabled[5] = { false };
-	bool FiveCycleDivider = false;
-	bool IRQdisable = false;
-	struct { int16_t lo, hi; } hz240counter = { 0,0 };
 	bool count(int& v, int reset);
 	int tick(uint8_t c);
+	APUState reg;
 };

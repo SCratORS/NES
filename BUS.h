@@ -1,9 +1,22 @@
 #pragma once
+
+#define INFO
+
 #include <cstdint>
 #include "RP6502.h"
 #include "RP2C02.h"
 #include "RP2A03.h"
 #include "CARTRIDGE.h"
+
+
+struct State {
+	uint8_t RAM[0x800];
+	uint32_t nSystemClockCounter;
+	CPUState CPU;
+	PPUState PPU;
+	APUState APU;
+	CARTState CART;
+};
 
 class BUS
 {
@@ -20,6 +33,8 @@ public:
 	void Reset();
 	void ConnectCartridge(CARTRIDGE * cartridge);
 	void RejectCartridge();
+	void LoadState(State * state);
+	void SaveState(State * state);
 private:
 	uint32_t nSystemClockCounter = 0;
 };

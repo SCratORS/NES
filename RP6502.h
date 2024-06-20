@@ -1,7 +1,16 @@
 #pragma once
 #include <string>
 #include <map>
-#include <vector>
+
+struct CPUState{
+	uint8_t  m      = 0x00;
+	uint8_t  a      = 0x00;
+	uint8_t  x      = 0x00;
+	uint8_t  y      = 0x00;
+	uint8_t  stkp   = 0x00;
+	uint16_t pc     = 0x0000;
+	uint8_t  status = 0x00;
+};
 
 class BUS;
 
@@ -11,14 +20,10 @@ public:
 	RP6502();
 	~RP6502();
 
-	uint8_t  m      = 0x00;
-	uint8_t  a      = 0x00;
-	uint8_t  x      = 0x00;
-	uint8_t  y      = 0x00;
-	uint8_t  stkp   = 0x00;
-	uint16_t pc     = 0x0000;
-	uint8_t  status = 0x00;
+	void SaveState(CPUState * state);
+	void LoadState(CPUState * state);
 
+	CPUState reg;
 	uint8_t  MemAccess(uint16_t addr, uint8_t data = 0x00, bool write = false);
 	uint8_t  controller[2];
 
@@ -74,13 +79,11 @@ private:
 	bool dma_transfer = false;
 	uint8_t controller_state[2];
 
-	struct INSTRUCTION
-	{
+	struct INSTRUCTION {
 		uint8_t     (RP6502::*operate )(void) = nullptr;
 		uint8_t     (RP6502::*addrmode)(void) = nullptr;
 		uint8_t     cycles = 0;
-	};
-	std::vector<INSTRUCTION> lookup;
+	} * lookup;
 
 private: 
 	uint8_t IMP();	uint8_t IMM();	

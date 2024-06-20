@@ -1,6 +1,6 @@
 #pragma once
-
 #include <cstdint>
+#include <memory>
 
 class Mapper {
 public:
@@ -13,8 +13,9 @@ public:
 	virtual uint8_t mirror();
 	virtual bool irqState();
 	virtual void irqClear();
-	virtual void LoadState() {};
-	virtual void SaveState() {};
+	virtual void LoadState(uint8_t * state){};
+	virtual uint8_t * SaveState(){ return nullptr;}
+	virtual uint32_t GetMapperSize(){ return 0;}
 	virtual void scanline(int16_t cycle, int16_t scanline, uint8_t mask, uint8_t control);
 
 protected:

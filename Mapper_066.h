@@ -11,10 +11,16 @@ public:
 	uint8_t mirror() override {return 0x01;}
 	bool irqState() override { return 0;}
 	void irqClear() override {}
+	void LoadState(uint8_t * state) override;
+	uint8_t * SaveState() override;
+	uint32_t GetMapperSize() override { return sizeof(mapper);}
 	void scanline(int16_t cycle, int16_t scanline, uint8_t mask, uint8_t control) override {}
 
 private:
-	uint8_t nCHRBankSelect = 0x00;
-	uint8_t nPRGBankSelect = 0x00;
+	struct mapper {
+		uint8_t nCHRBankSelect = 0x00;
+		uint8_t nPRGBankSelect = 0x00;
+	} reg;
+
 };
 

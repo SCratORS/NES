@@ -10,12 +10,18 @@ public:
 
 	bool CPUMapAddress(uint16_t addr, uint32_t &mapped_addr, uint8_t &data, bool write = false) override;
 	bool PPUMapAddress(uint16_t addr, uint32_t &mapped_addr, bool write = false) override;
-	void reset() override {nCHRBankSelect = 0;}
+	void reset() override {reg.nCHRBankSelect = 0;}
 	uint8_t mirror() override {return 0x01;}
 	bool irqState() override { return 0;}
 	void irqClear() override {}
+	void LoadState(uint8_t * state) override;
+	uint8_t * SaveState() override;
+	uint32_t GetMapperSize() override { return sizeof(mapper);}
 	void scanline(int16_t cycle, int16_t scanline, uint8_t mask, uint8_t control) override {}
 private:
-	uint8_t nCHRBankSelect = 0x00;
+	struct mapper {
+		uint8_t nCHRBankSelect = 0x00;
+	} reg;
+
 };
 

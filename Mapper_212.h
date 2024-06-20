@@ -8,17 +8,23 @@ public:
 	bool CPUMapAddress(uint16_t addr, uint32_t &mapped_addr, uint8_t &data, bool write = false) override;
 	bool PPUMapAddress(uint16_t addr, uint32_t &mapped_addr, bool write = false) override;
 	void reset() override;
-	uint8_t mirror() override {return mirrormode;}
+	uint8_t mirror() override {return reg.mirrormode;}
 	bool irqState() override { return 0;}
 	void irqClear() override {}
+	void LoadState(uint8_t * state) override;
+	uint8_t * SaveState() override;
+	uint32_t GetMapperSize() override { return sizeof(mapper);}
 	void scanline(int16_t cycle, int16_t scanline, uint8_t mask, uint8_t control) override {}
 
 private:
-	uint8_t nPRGBankSelectLo = 0x00;
-	uint8_t nPRGBankSelectHi = 0x00;
-	uint8_t nCHRBankSelect = 0x00;
-	uint8_t nPRGBankSelect = 0x00;
-	bool bankingStyle = false;
-	uint8_t mirrormode = 0x0C;
+	struct mapper {
+		uint8_t nPRGBankSelectLo = 0x00;
+		uint8_t nPRGBankSelectHi = 0x00;
+		uint8_t nCHRBankSelect = 0x00;
+		uint8_t nPRGBankSelect = 0x00;
+		bool bankingStyle = false;
+		uint8_t mirrormode = 0x0C;		
+	} reg;
+
 };
 

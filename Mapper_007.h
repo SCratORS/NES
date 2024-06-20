@@ -1,5 +1,6 @@
 #pragma once
 #include "Mapper.h"
+
 class Mapper_007 : public Mapper
 {
 public:
@@ -7,13 +8,19 @@ public:
 	~Mapper_007() {}
 	bool CPUMapAddress(uint16_t addr, uint32_t &mapped_addr, uint8_t &data, bool write = false) override;
 	bool PPUMapAddress(uint16_t addr, uint32_t &mapped_addr, bool write = false) override;
-	void reset() override {nPRGBank = 0;}
-	uint8_t mirror() override {return mirrormode;}
+	void reset() override {reg.nPRGBank = 0;}
+	uint8_t mirror() override {return reg.mirrormode;}
 	bool irqState() override { return 0;}
 	void irqClear() override {}
+	void LoadState(uint8_t * state) override;
+	uint8_t * SaveState() override;
+	uint32_t GetMapperSize() override { return sizeof(mapper);}
 	void scanline(int16_t cycle, int16_t scanline, uint8_t mask, uint8_t control) override {}
 private:
-	uint8_t nPRGBank = 0;
-	uint8_t mirrormode = 0x0C;
+	struct mapper {
+		uint8_t nPRGBank = 0;
+		uint8_t mirrormode = 0x0C;	
+	} reg;
+
 };
 
