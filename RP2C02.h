@@ -119,7 +119,7 @@ private:
 	bool bSpriteZeroHitPossible = false;
 	bool bSpriteZeroBeingRendered = false;
 	uint8_t scale = 0;
-	uint8_t scale_offset = 32;
+	int8_t scale_offset = 32;
 	uint16_t screen_width = 256;
 
 public:
