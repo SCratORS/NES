@@ -6,7 +6,15 @@ RP2C02::RP2C02() {}
 void RP2C02::setScale(uint16_t screen_width, uint8_t scale) {
 	this->scale = scale;
 	this->screen_width = screen_width;
-	this->scale_offset = scale==2?((screen_width-256)>>1):(scale<2?((screen_width-(screen_width>=308?308:256))>>1):0);
+	uint16_t screen_mod = 256;
+	switch (scale) {
+		case 0: screen_mod += screen_mod * 0.11f; break;// 4:3 = 284
+		case 1: screen_mod += screen_mod * 0.11f; break;// 4:3 = 284
+		case 2: break;//PP = 256
+		case 3: screen_mod += screen_mod * 0.205f; break;//GW = 308
+		case 4: screen_mod += screen_mod * 0.25f; break;//320 = 320
+	}
+	this->scale_offset = (screen_width - screen_mod) >> 1; 
 }
 
 void RP2C02::SaveState(PPUState * state) {
@@ -203,24 +211,26 @@ void RP2C02::rendering_pixel() {
 	}
 	if (bSpriteZeroHitPossible && bSpriteZeroBeingRendered && render_bg && render_sp) reg.status.sprite_zero_hit = 1;
 	if (scanline < 0) return;
+	if (scale_offset+cycle < 0 || scale_offset+cycle > screen_width) return;
 
 	uint32_t offset = scanline * screen_width + scale_offset;
 	uint32_t color = palScreen[PPUMemAccess(0x3F00+(palette<<2)+pixel)&0x3F];
 	uint8_t mod = 0;
 	switch (scale) {
 		case 0: if (scanline%2) color = avrColor(3, 1, color, 0);
-		case 1: mod = 5; break; // 4:3
+		case 1: mod = 9; break; // 4:3
 		case 2: break;			//PixelPerfect
-		case 3: mod = 4; break; //Stretch to 320
+		case 3: mod = 5; break; //Stretch to Game&Watch
+		case 4: mod = 4; break; //Stretch to 320
 	}
-	if (screen_width < 308 || scale == 2) { //PixelPerfect or screen < 308
+	if (scale == 2) { //PixelPerfect
 		FrameBuffer[offset + (cycle - 1)] = color; 
 		return;
 	}
 	offset += (mod+1) * ((cycle - 1) / mod);
 	uint8_t shift = ((cycle-1) % mod);
 	FrameBuffer[offset + shift] = avrColor(shift, mod-shift, FrameBuffer[offset + shift] , color);
-	if (mod == 5 && (cycle - 1)==255) return;
+	if (mod%2 && (cycle - 1)==255) return;
 	FrameBuffer[offset + shift+1] = color;
 }
 
