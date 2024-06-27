@@ -72,7 +72,9 @@ CARTRIDGE::CARTRIDGE(const std::string& sFileName) {
 }
 
 CARTRIDGE::~CARTRIDGE() {
+	delete vPRGMemory;
 	vPRGMemory = NULL;
+	delete vCHRMemory;
 	vCHRMemory = NULL;
 	delete pMapper;
 	pMapper = NULL;
